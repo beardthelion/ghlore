@@ -109,13 +109,15 @@ def scrub_counted(text: str) -> tuple[str, Counter[str]]:
         found[name] += 1
         return f"[SCRUBBED:{name}]" if keep is None else f"[SCRUBBED:{name} {keep}]"
 
-    out = _SENTINEL.sub(lambda _m: _typed("delimiter"), text)
-    out = _PIPE_TOKEN.sub(lambda m: _typed("special-token", m.group(1)), out)
-    out = _BRACKET_TOKENS.sub(lambda m: _typed("special-token", m.group(0).strip("<>[]/")), out)
     # Invisible and control characters are dropped rather than named: one placeholder per
     # character would drown the text it was hiding in, and a reader loses nothing visible.
-    out = _INVISIBLE.sub(lambda _m: _count("invisible", found), out)
+    # They strip FIRST, because one nested inside a sentinel or token would otherwise be
+    # removed only after the match it was blocking -- emitting the exact bytes.
+    out = _INVISIBLE.sub(lambda _m: _count("invisible", found), text)
     out = _CONTROL.sub(lambda _m: _count("control", found), out)
+    out = _SENTINEL.sub(lambda _m: _typed("delimiter"), out)
+    out = _PIPE_TOKEN.sub(lambda m: _typed("special-token", m.group(1)), out)
+    out = _BRACKET_TOKENS.sub(lambda m: _typed("special-token", m.group(0).strip("<>[]/")), out)
     return out, found
 
 
