@@ -126,6 +126,17 @@ def _count(name: str, found: Counter[str]) -> str:
     return ""
 
 
+def strip_hidden(text: str) -> str:
+    """Drop the characters :func:`scrub` removes without a placeholder.
+
+    For a gate that pattern-matches the same text earlier in the pipeline, like the
+    ingest-time secret scan: the match has to run on what the reader will see, and this
+    set is the difference. Strip it first, on this definition, or a token split by one
+    of these characters is invisible to the match and reassembled at serve.
+    """
+    return _CONTROL.sub("", _INVISIBLE.sub("", text))
+
+
 def scrub_tree(obj: Any) -> Any:
     """:func:`scrub` every string reachable in a response body.
 

@@ -369,6 +369,28 @@ def test_a_secret_is_redacted_in_both_stored_copies(engine: Engine, fake: FakeGi
     assert result.redactions == {"github-token": 1}
 
 
+def test_a_secret_split_by_an_invisible_byte_reaches_no_stored_copy(
+    engine: Engine, fake: FakeGitHub
+) -> None:
+    """``normalize`` drops zero-width characters on the way to ``body_text``, and serve
+    drops the rest: a token ``redact`` missed would be reassembled out of both copies."""
+    secret = "ghp_" + "z" * 36
+    pr = fake.add_pr(1)
+    fake.add_comment(pr, 100, f"token = {secret[:4]}​{secret[4:]}")
+    result = _index(engine, fake, 1)
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(s.documents.c.body_markdown, s.documents.c.body_text).where(
+                s.documents.c.source_type == "issue_comment"
+            )
+        ).one()
+    assert secret not in row.body_markdown
+    assert secret not in row.body_text
+    assert "[REDACTED:github-token]" in row.body_markdown
+    assert result.redactions == {"github-token": 1}
+
+
 def test_derive_reruns_from_raw_objects_with_no_network(engine: Engine, fake: FakeGitHub) -> None:
     """Section 5.0's promise: re-deriving costs local CPU, never API budget.
 

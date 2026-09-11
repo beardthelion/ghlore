@@ -47,6 +47,17 @@ def test_nothing_to_redact_is_a_no_op() -> None:
     assert found == {}
 
 
+def test_a_secret_split_by_an_invisible_byte_is_still_redacted() -> None:
+    """Serve drops these bytes without a placeholder, so a token broken by one is
+    reassembled downstream unless the match runs on the text the reader gets."""
+    secret = "ghp_" + "b" * 36
+    for glue in ("​", "‮", "\x00"):
+        clean, found = redact(secret[:4] + glue + secret[4:])
+        assert secret not in clean
+        assert "[REDACTED:github-token]" in clean
+        assert found == {"github-token": 1}
+
+
 def test_normalize_strips_html_comments_and_link_targets() -> None:
     body = "<!-- bot metadata -->see [the docs](https://example.com/x) for more"
     assert normalize(body) == "see the docs for more"
