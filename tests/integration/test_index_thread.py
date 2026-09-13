@@ -369,14 +369,19 @@ def test_a_secret_is_redacted_in_both_stored_copies(engine: Engine, fake: FakeGi
     assert result.redactions == {"github-token": 1}
 
 
+@pytest.mark.parametrize("glue", ["\u200b", "\u202e", "\x00", "\u2028"])
 def test_a_secret_split_by_an_invisible_byte_reaches_no_stored_copy(
-    engine: Engine, fake: FakeGitHub
+    engine: Engine, fake: FakeGitHub, glue: str
 ) -> None:
     """``normalize`` drops zero-width characters on the way to ``body_text``, and serve
-    drops the rest: a token ``redact`` missed would be reassembled out of both copies."""
+    drops the rest: a token ``redact`` missed would be reassembled out of both copies.
+
+    U+2028 is the case the unit test above explains: no layer here treats it as invisible,
+    and `normalize` removes it anyway, so it splits a secret past the scan and puts it back
+    together in the column search reads."""
     secret = "ghp_" + "z" * 36
     pr = fake.add_pr(1)
-    fake.add_comment(pr, 100, f"token = {secret[:4]}​{secret[4:]}")
+    fake.add_comment(pr, 100, f"token = {secret[:4]}{glue}{secret[4:]}")
     result = _index(engine, fake, 1)
 
     with engine.connect() as conn:

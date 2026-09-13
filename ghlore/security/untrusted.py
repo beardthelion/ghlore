@@ -91,6 +91,11 @@ _INVISIBLE = re.compile(
     "]"
 )
 
+# The Unicode line separators. Neither invisible nor a control character, and :func:`scrub`
+# leaves them alone -- but :func:`ghlore.ingest.normalize.normalize` removes them on the way
+# to ``body_text``, which is the only property :func:`strip_hidden` is about.
+_LINE_SEPARATORS = re.compile("[  ]")
+
 
 def scrub(text: str) -> str:
     """Neutralize the sequences by which content could stop being content."""
@@ -127,14 +132,21 @@ def _count(name: str, found: Counter[str]) -> str:
 
 
 def strip_hidden(text: str) -> str:
-    """Drop the characters :func:`scrub` removes without a placeholder.
+    """Drop every character that some later layer removes without leaving a trace.
 
     For a gate that pattern-matches the same text earlier in the pipeline, like the
     ingest-time secret scan: the match has to run on what the reader will see, and this
     set is the difference. Strip it first, on this definition, or a token split by one
-    of these characters is invisible to the match and reassembled at serve.
+    of these characters is invisible to the match and reassembled downstream.
+
+    **The set is defined by what is removed, not by what is invisible**, which is why the
+    Unicode line separators are in it and :func:`scrub` still leaves them alone. `normalize`
+    strips them on the way to ``body_text``, so `ghp_` + U+2028 + 36 characters passed the
+    secret scan and arrived whole in the column full-text search matches and snippets are
+    served from -- the same defect as the sentinel one, one byte class over. A character
+    that any layer drops silently belongs here even when no layer here drops it.
     """
-    return _CONTROL.sub("", _INVISIBLE.sub("", text))
+    return _LINE_SEPARATORS.sub("", _CONTROL.sub("", _INVISIBLE.sub("", text)))
 
 
 def scrub_tree(obj: Any) -> Any:
